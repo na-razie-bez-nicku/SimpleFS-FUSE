@@ -12,6 +12,12 @@ int makeFile(Disk *disk, std::string filePath, std::string content)
     if (content == "\0")
         size = 512;
 
+    if ((size + 511) / 512 > header.freeBlockCount)
+    {
+        std::cerr << "Not enough free space to save this file!";
+        return -1;
+    }
+
     disk->seekDisk(header.bitmapOffset, UNISEEK_BEG);
 
     uint8_t *bitmap = readBitmap(disk);
@@ -49,7 +55,7 @@ int makeFile(Disk *disk, std::string filePath, std::string content)
         std::cerr << "Insufficient disk space in a row. Fragmentation will be in the future.";
         // return -1;
 
-        std::vector<Run> frags = {};
+        Runs frags = {};
         size_t frag_size = 0;
         for (size_t i = 0; i < header.bitmapSizeBytes * 8; i++)
         {
@@ -173,62 +179,143 @@ int makeFile(Disk *disk, std::string filePath, std::string content)
     return 0;
 }
 
-int readTextFile(Disk *disk, DirEntry entry, char *&buffer, uint64_t offset, uint64_t size)
+// int resizeFile(Disk *disk, DirEntry entry, size_t newSize)
+// {
+//     FSHeader header;
+
+//     readHeader(disk, header);
+
+//     Runs runlist = parseRunlist(entry.runlist);
+
+//     std::vector<DirEntry> entries;
+
+//     readRootDir(disk, header.rootDirOffset, 65536, entries);
+//     if (entry.sizeBytes > newSize)
+//     {
+//         if (entry.sizeBytes - newSize / 512)
+//         {
+//         }
+//     }
+//     else
+//     {
+//         if (newSize - entry.sizeBytes / 512)
+//         {
+//         }
+//     }
+//     entry.sizeBytes = newSize;
+//     for (size_t i = 0; i < 256; i++)
+//     {
+//         DirEntry dirEntry = entries[i];
+
+//         if (strcmp(dirEntry.name, entry.name) != 0)
+//             continue;
+
+//         writeRootDir(disk, header.rootDirOffset + i * sizeof(DirEntry), std::vector<DirEntry>{dirEntry});
+//         return 0;
+//     }
+// }
+
+// int writeFile(Disk *disk, DirEntry entry, std::string content, size_t offset)
+// {
+//     Runs runlist = parseRunlist(entry.runlist);
+
+//     size_t fileEnd = 0;
+
+//     size_t lastSectorBytes = entry.sizeBytes % 512;
+
+//     for (Runs::const_iterator run = runlist.begin(); run != runlist.end(); run++)
+//     {
+//         fileEnd += run->offset + run->length;
+//         if (run == runlist.end())
+//             fileEnd -= 512 - lastSectorBytes;
+//     }
+// }
+
+// int writeFile(Disk *disk, std::string filePath, std::string content, size_t offset)
+// {
+// }
+
+uint64_t readTextFile(Disk *disk, DirEntry entry, char *&buffer, uint64_t offset, uint64_t size)
 {
+    FSHeader header;
+    readHeader(disk, header);
+    // printHeader(header);
     uint64_t minimumSize = offset + size;
 
-    uint64_t finalSize = size;
+    // uint64_t finalSize = size;
 
     if (entry.sizeBytes < minimumSize)
     {
         size = entry.sizeBytes - offset;
     }
 
-    std::vector<Run> runs = parseRunlist(entry.runlist);
+    Runs runs = parseRunlist(entry.runlist);
 
     uint64_t sectorOffset = offset / 512;
     uint64_t byteRemainder = offset % 512;
 
-    for (auto it = runs.begin(); it != runs.end();)
-    {
-        if (sectorOffset >= it->length)
-        {
-            // offset jest poza tym runem → pomijamy go
-            sectorOffset -= it->length;
-            it = runs.erase(it); // usuń z wektora i przejdź do następnego
-        }
-        else
-        {
-            // offset mieści się w tym runie → przesuwamy offset wewnątrz runa
-            it->offset += sectorOffset; // zaczynamy czytać później w tym runie
-            it->length -= sectorOffset; // skracamy run od początku
-            offset = 0;                 // już obsłużyliśmy offset
-            break;                      // koniec przesuwania
-        }
-    }
+    std::cout << sectorOffset << "\n\n";
 
-    disk->seekDisk(0, UNISEEK_BEG);
+    uint64_t seek = 0;
+
+    // for (auto it = runs.begin(); it != runs.end();)
+    // {
+    //     std::cout << "Run offset: " << it->offset << "\n\n";
+    //     std::cout << "Run length: " << it->length << "\n\n";
+
+    //     break;
+    //     if (sectorOffset >= it->length)
+    //     {
+    //         // offset jest poza tym runem → pomijamy go
+    //         sectorOffset -= it->length;
+    //         seek += (it->offset + it->length) * 512;
+    //         it = runs.erase(it); // usuń z wektora i przejdź do następnego
+    //     }
+    //     else
+    //     {
+    //         // offset mieści się w tym runie → przesuwamy offset wewnątrz runa
+    //         it->offset += sectorOffset; // zaczynamy czytać później w tym runie
+    //         it->length -= sectorOffset; // skracamy run od początku
+    //         offset = 0;                 // już obsłużyliśmy offset
+    //         seek += (it->offset + sectorOffset) * 512;
+    //         break; // koniec przesuwania
+    //     }
+    // }
+
+    seek = runs[0].offset * 512;
+
+    seek += offset;
+
+    std::cout << "current position: " << disk->seekDisk(0, UNISEEK_BEG) << "\n";
 
     char *dst = buffer;
 
+    std::cout << "runs.size() = " << runs.size() << "\n";
+
+    size_t finalRead = 0;
+
     for (Run run : runs)
     {
-        disk->seekDisk(run.offset + byteRemainder, UNISEEK_CUR);
+        std::cout << "co? XD\n";
+        std::cout << run.offset * 512 << '\n';
+        disk->seekDisk(run.offset * 512, UNISEEK_CUR);
+
+        std::cout << "position: " << disk->getPosition() << "\n";
 
         uint64_t bytesToRead = run.length * 512 - byteRemainder;
 
-        disk->readDisk(dst, bytesToRead);
+        finalRead += disk->readDisk(dst, bytesToRead);
 
         dst += bytesToRead;
     }
 
     // std::cout << finalSize;
 
-    disk->seekDisk(runs[0].offset * 512, UNISEEK_BEG);
+    // disk->seekDisk(runs[0].offset * 512, UNISEEK_BEG);
 
-    disk->readDisk(buffer, finalSize);
+    // disk->readDisk(buffer, size)
 
-    return finalSize;
+    return finalRead;
 }
 
 int readTextFile(Disk *disk, const char *filePath, char *&buffer, uint64_t offset, uint64_t size)
@@ -258,9 +345,9 @@ int readTextFile(Disk *disk, const char *filePath, char *&buffer, uint64_t offse
 
 int readAllText(Disk *disk, DirEntry entry, char *&buffer)
 {
-    readTextFile(disk, entry, buffer, 0, entry.sizeBytes);
-    std::cerr << "File \"" << entry.name << "\" doesn't exists" << std::endl;
-    return -1;
+    std::cout << "test 1";
+
+    return readTextFile(disk, entry, buffer, 0, entry.sizeBytes);
 }
 
 int readAllText(Disk *disk, const char *filePath, char *&buffer)

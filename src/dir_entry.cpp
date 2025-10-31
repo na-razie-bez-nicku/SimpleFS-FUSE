@@ -24,6 +24,8 @@ struct Run
 {
     uint64_t offset, length;
 };
+
+typedef std::vector<Run> Runs;
 #pragma pack(pop)
 
 uint8_t minBytesForNumber(uint64_t value)
@@ -38,7 +40,7 @@ uint8_t minBytesForNumber(uint64_t value)
     return bytes;
 }
 
-size_t createRunlist(std::vector<Run> runs, uint8_t *&byteRuns)
+size_t createRunlist(Runs runs, uint8_t *&byteRuns)
 {
     size_t length = 1 + minBytesForNumber(runs[0].offset) + minBytesForNumber(runs[0].length);
     byteRuns = (uint8_t *)malloc(length);
@@ -92,25 +94,32 @@ size_t createRunlist(std::vector<Run> runs, uint8_t *&byteRuns)
     return length;
 }
 
-std::vector<Run> parseRunlist(uint8_t *byteRuns)
+Runs parseRunlist(uint8_t *byteRuns)
 {
-    std::vector<Run> runs;
+    Runs runs;
     for (size_t i = 0; i < 109; i++)
     {
         if (byteRuns[i] == 0x00)
             break;
         uint8_t high = byteRuns[i] >> 4;
         uint8_t low = byteRuns[i] & 0x0F;
+        std::cout << std::to_string(high) << " " << std::to_string(low) << "\n\n";
         uint64_t offset = 0, length = 0;
         size_t oldIdx = ++i;
+        std::cout << i << " " << high + oldIdx << "\n\n";
         for (; i < high + oldIdx; i++)
         {
             offset = (offset << 8) | byteRuns[i];
+            std::cout << "offset byte: " << std::to_string(byteRuns[i]) << '\n';
+            std::cout << "offset: " << offset << "\n\n";
         }
        	oldIdx = ++i;
+        std::cout << i << " " << low + oldIdx << "\n\n";
         for (; i < low + oldIdx; i++)
         {
             length = (length << 8) | byteRuns[i];
+            std::cout << "length byte: " << std::to_string(byteRuns[i]) << '\n';
+            std::cout << "length: " << length << "\n\n";
         }
 
         runs.push_back({offset, length});
@@ -154,7 +163,7 @@ DirEntry createDirEntry(const char *filename, uint64_t startBlock, uint64_t size
     return entry;
 }
 
-DirEntry createDirEntry(const char *filename, std::vector<Run> runs, uint64_t sizeBytes, uint8_t type)
+DirEntry createDirEntry(const char *filename, Runs runs, uint64_t sizeBytes, uint8_t type)
 {
     DirEntry entry;
     std::memset(&entry, 0, sizeof(entry));
@@ -164,7 +173,7 @@ DirEntry createDirEntry(const char *filename, std::vector<Run> runs, uint64_t si
     entry.type = type;
 
     uint8_t *byteRuns;
-    size_t runlistLength = createRunlist(std::vector<Run>(runs), byteRuns);
+    size_t runlistLength = createRunlist(Runs(runs), byteRuns);
 
     memcpy(entry.runlist, byteRuns, runlistLength);
 

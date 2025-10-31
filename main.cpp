@@ -50,7 +50,7 @@ static int simplefs_getattr(
         {
             st->st_size = entry.sizeBytes;
 
-            st->st_mode = S_IFREG | 0444;
+            st->st_mode = S_IFREG | 0555;
             st->st_nlink = 1;
 
             return 0;
@@ -135,8 +135,8 @@ static int simplefs_read(const char *path, char *buf, size_t size, off_t offset,
     {
         if (strcmp(filename, entry.name) == 0)
         {
-            readAllText(&disk, entry, buf);
-            return entry.sizeBytes;
+            std::cout << "idk main.cpp " << size << " " << offset << "\n\n";
+            return readTextFile(&disk, entry, buf, offset, size);
         }
     }
     return -ENOENT;
@@ -162,7 +162,6 @@ static int simplefs_write(
     {
         if (strcmp(filename, entry.name) == 0)
         {
-            
 
             return size;
         }
@@ -214,6 +213,19 @@ static void *simplefs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
     return &disk; // można zwrócić wskaźnik do własnego kontekstu
 }
 
+static int simplefs_flush(const char *path, struct fuse_file_info *fi)
+{
+    (void)path;
+    (void)fi;
+    return 0;
+}
+
+static int simplefs_fallocate(const char *path, int mode, off_t offset, off_t length,
+                              struct fuse_file_info *fi)
+{
+    return 0; // lub 0, jeśli chcesz "udawać sukces"
+}
+
 // ------------------------------------------------------------
 // Operacje FUSE – przypisanie funkcji
 // ------------------------------------------------------------
@@ -234,12 +246,13 @@ static const struct fuse_operations simplefs_oper = {
     .read = simplefs_read,
     .write = simplefs_write,
     .statfs = nullptr,
-    .flush = nullptr,
+    .flush = simplefs_flush,
     .release = nullptr,
     .fsync = nullptr,
     .readdir = simplefs_readdir,
     .init = simplefs_init,
     .create = simplefs_create,
+    .fallocate = simplefs_fallocate,
 };
 
 static struct fuse_opt simplefs_opts[] = {

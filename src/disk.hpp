@@ -49,6 +49,7 @@ public:
 
 	std::string path;
 
+	size_t getPosition();
 	bool openDisk(unsigned int mode);
 	size_t readDisk(void *buffer, size_t size);
 	size_t writeDisk(const void *buffer, size_t size);

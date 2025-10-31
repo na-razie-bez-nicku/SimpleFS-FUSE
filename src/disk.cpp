@@ -2,6 +2,7 @@
 #define FILEAPI_CPP
 
 #include "disk.hpp"
+#include <iostream>
 
 Disk::Disk(std::string path)
 {
@@ -11,6 +12,18 @@ Disk::Disk(std::string path)
 Disk::~Disk()
 {
     closeDisk(); // automatyczne zamykanie pliku
+}
+
+size_t Disk::getPosition()
+{
+#ifdef _WIN32
+    LARGE_INTEGER liZero = {};
+    LARGE_INTEGER liNewPos = {};
+    SetFilePointerEx(handle, liZero, &liNewPos, FILE_CURRENT);
+    return static_cast<size_t>(liNewPos.QuadPart);
+#else
+    return lseek(fd, 0, SEEK_CUR);
+#endif
 }
 
 bool Disk::openDisk(unsigned int mode)
@@ -40,6 +53,7 @@ size_t Disk::readDisk(void *buffer, size_t size)
     else
         return SIZE_MAX; // Error reading file
 #else
+    std::cout << "a więc " << size << "\n";
     return read(fd, buffer, size);
 #endif
 }
